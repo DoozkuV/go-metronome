@@ -12,14 +12,18 @@ import (
 func main() {
 
 	// Initialize our metronome
-	m := audio.NewMetronome(60)
-	m.Ctrl.Paused = false
+	metronome := audio.NewMetronome(60)
+	metronome.Ctrl.Paused = false
 
-	tui.MakeRawTerm()
+	err := tui.MakeTermRaw()
+	if err != nil {
+		log.Fatalf("Failed to set terminal to raw mode: %v. Your terminal might not be interactive.\n", err)
+	}
 	defer tui.RestoreTerm()
+
 	// Main TUI Loop
 	for {
-		bpm := m.Bpm()
+		bpm := metronome.Bpm()
 		// Clear line then print
 		fmt.Printf("\r+ BPM: %d - ", int(bpm))
 
@@ -31,9 +35,11 @@ func main() {
 
 		switch buf[0] {
 		case '=', '+':
-			m.SetBpm(bpm + 2)
+			metronome.SetBpm(bpm + 2)
 		case '-', '_':
-			m.SetBpm(bpm - 2)
+			metronome.SetBpm(bpm - 2)
+		case ' ', '\r':
+			metronome.Ctrl.Paused = !metronome.Ctrl.Paused
 		case 'q', byte(3): // Ctrl-C
 			fmt.Print("\r\nHave a beautiful day!\r\n")
 			return

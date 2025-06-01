@@ -11,52 +11,58 @@ import (
 	"github.com/gopxl/beep/wav"
 )
 
-//go:embed sounds/metronome-hit.wav
-var audioFile []byte
-
-// TODO: Figure out a better solution than hard-coding this
-const (
-	audioFileLength float64 = 0.417959
-	fileBpm         float64 = (1 / audioFileLength) * 60 // BPM
+var (
+	//go:embed sounds/metronome-hit.wav
+	audioFile []byte
+	fileBpm   float64
 )
 
 // A simple wrapper around the metronome
-type Metronome struct {
+type metronome struct {
 	Ctrl      *beep.Ctrl
 	resampler *beep.Resampler
 }
 
 // Creates a metronome at the specified BPM
-func NewMetronome(bpm float64) *Metronome {
+func NewMetronome(bpm float64) *metronome {
 	// Initialize the streamer from the embedded metronome sound
-	// TODO: Load this directly into memory
 	streamer, format, err := wav.Decode(bytes.NewReader(audioFile))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer streamer.Close()
+	buffer := beep.NewBuffer(format)
+	buffer.Append(streamer)
+	streamer.Close()
+
+	sr := format.SampleRate
+	// Calculate the length and bpm of the audio file
+	if sr > 0 {
+		numFrames := buffer.Len() // Total number of frames in the stream
+		audioFileLength := sr.D(numFrames)
+		fileBpm = (1 / audioFileLength.Minutes())
+	} else {
+		panic("Invalid audio file")
+	}
 
 	// Initialize the speaker
-	sr := format.SampleRate
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	// Set up the effects chain for the streamer
-	loop := beep.Loop(-1, streamer)
+	s := buffer.Streamer(0, buffer.Len())
+	loop := beep.Loop(-1, s)
 	ctrl := &beep.Ctrl{Streamer: loop, Paused: true}
-	// Speed of the sound
 	resampler := beep.ResampleRatio(4, bpm/fileBpm, ctrl)
 
 	speaker.Play(resampler)
-	return &Metronome{Ctrl: ctrl, resampler: resampler}
+	return &metronome{Ctrl: ctrl, resampler: resampler}
 }
 
-func (m *Metronome) SetBpm(bpm float64) {
+func (m *metronome) SetBpm(bpm float64) {
 	speaker.Lock()
+	defer speaker.Unlock()
 	m.resampler.SetRatio(bpm / fileBpm)
-	speaker.Unlock()
 }
 
-func (m *Metronome) Bpm() (bpm float64) {
-	bpm = fileBpm * m.resampler.Ratio()
-	return
+func (m *metronome) Bpm() float64 {
+	return fileBpm * m.resampler.Ratio()
 }
