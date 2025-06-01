@@ -4,42 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/DoozkuV/go-metronome/audio"
-	"golang.org/x/term"
+	"github.com/DoozkuV/go-metronome/internal/tui"
 )
-
-type rawTerm struct {
-	fd       int
-	oldState *term.State
-}
-
-func CreateRawTerm() *rawTerm {
-	fd := int(os.Stdin.Fd())
-	oldState, err := term.MakeRaw(fd)
-	raw := rawTerm{fd: fd, oldState: oldState}
-	if err != nil {
-		panic(err)
-	}
-
-	// Handle Ctrl-C gracefully
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		raw.EndProgram()
-	}()
-
-	return &raw
-}
-
-func (r *rawTerm) EndProgram() {
-	term.Restore(r.fd, r.oldState)
-	fmt.Println("\nGoodbye!")
-	os.Exit(0)
-}
 
 func main() {
 
@@ -47,9 +15,8 @@ func main() {
 	m := audio.NewMetronome(60)
 	m.Ctrl.Paused = false
 
-	raw := CreateRawTerm()
-	// TODO: Find a better solution for ending the prog
-	defer raw.EndProgram()
+	tui.MakeRawTerm()
+	defer tui.RestoreTerm()
 	// Main TUI Loop
 	for {
 		bpm := m.Bpm()
@@ -68,7 +35,8 @@ func main() {
 		case '-', '_':
 			m.SetBpm(bpm - 2)
 		case 'q', byte(3): // Ctrl-C
-			raw.EndProgram()
+			fmt.Print("\r\nHave a beautiful day!\r\n")
+			return
 		}
 	}
 }
