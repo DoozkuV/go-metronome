@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gopxl/beep"
+	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/speaker"
 	"github.com/gopxl/beep/wav"
 )
@@ -19,7 +20,8 @@ var (
 
 // A simple wrapper around the metronome
 type metronome struct {
-	Ctrl      *beep.Ctrl
+	*beep.Ctrl
+	Vol       *effects.Volume
 	resampler *beep.Resampler
 }
 
@@ -51,10 +53,11 @@ func NewMetronome(bpm float64) *metronome {
 	s := buffer.Streamer(0, buffer.Len())
 	loop := beep.Loop(-1, s)
 	ctrl := &beep.Ctrl{Streamer: loop, Paused: true}
-	resampler := beep.ResampleRatio(4, bpm/fileBpm, ctrl)
+	volume := &effects.Volume{Streamer: ctrl, Base: 2, Volume: 0, Silent: false}
+	resampler := beep.ResampleRatio(4, bpm/fileBpm, volume)
 
 	speaker.Play(resampler)
-	return &metronome{Ctrl: ctrl, resampler: resampler}
+	return &metronome{Ctrl: ctrl, resampler: resampler, Vol: volume}
 }
 
 func (m *metronome) SetBpm(bpm float64) {
